@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.takusan23.androidatcommandui.ui.theme.AndroidAtCommandUITheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -69,13 +70,22 @@ private fun MainScreen() {
     LaunchedEffect(key1 = Unit) {
         withContext(Dispatchers.IO) {
             val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat", "/dev/smd7"))
-            try {
-                process.inputStream.bufferedReader().use { bufferedReader ->
-                    while (isActive) {
-                        val readText = bufferedReader.readLine()?.ifEmpty { null } ?: continue
-                        outputList.value += readText
+            launch {
+                // 出力を取り出す
+                try {
+                    process.inputStream.bufferedReader().use { bufferedReader ->
+                        while (isActive) {
+                            val readText = bufferedReader.readLine()?.ifEmpty { null } ?: continue
+                            outputList.value += readText
+                        }
                     }
+                } catch (e: Exception) {
+                    // 握りつぶす
                 }
+            }
+            // cat を終わらせる
+            try {
+                awaitCancellation()
             } finally {
                 process.destroy()
             }
