@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -27,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -53,6 +56,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun MainScreen() {
     val scope = rememberCoroutineScope()
+    val deviceList = remember { mutableStateOf(emptyList<String>()) }
+    val selectDevice = remember { mutableStateOf("") }
     val outputList = remember { mutableStateOf(emptyList<String>()) }
     val commandText = remember { mutableStateOf("AT") }
 
@@ -61,15 +66,27 @@ private fun MainScreen() {
         scope.launch(Dispatchers.IO) {
             // 出力は outputList で
             Runtime.getRuntime().exec(
-                arrayOf("su", "-c", "echo", "-e", """ "${commandText.value}\r" """, ">", "/dev/smd7")
+                arrayOf("su", "-c", "echo", "-e", """ "${commandText.value}\r" """, ">", selectDevice.value)
             )
         }
     }
 
-    // AT コマンドの出力を while ループで取り出す
+    // /dev/smd 一覧を取り出す
     LaunchedEffect(key1 = Unit) {
         withContext(Dispatchers.IO) {
-            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat", "/dev/smd7"))
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "ls", "/dev/smd*"))
+            val readText = process.inputStream.bufferedReader().use { bufferedReader -> bufferedReader.readText() }
+            deviceList.value = readText.lines().filter { it.isNotEmpty() }
+            selectDevice.value = deviceList.value.first()
+        }
+    }
+
+    // AT コマンドの出力を while ループで取り出す
+    LaunchedEffect(key1 = selectDevice.value) {
+        if (selectDevice.value.isEmpty()) return@LaunchedEffect
+
+        withContext(Dispatchers.IO) {
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat", selectDevice.value))
             launch {
                 // 出力を取り出す
                 try {
@@ -100,6 +117,17 @@ private fun MainScreen() {
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
+                if (deviceList.value.isNotEmpty()) {
+                    OutlinedDropDownMenu(
+                        modifier = Modifier.weight(1f),
+                        label = "デバイス",
+                        currentSelectIndex = deviceList.value.indexOf(selectDevice.value),
+                        menuList = deviceList.value,
+                        onSelect = { pos -> selectDevice.value = deviceList.value[pos] }
+                    )
+                }
+
                 OutlinedTextField(
                     modifier = Modifier.weight(1f),
                     value = commandText.value,
@@ -113,8 +141,14 @@ private fun MainScreen() {
                     label = { Text(text = "AT コマンド") }
                 )
 
-                Button(onClick = { executeCommand() }) {
-                    Text(text = "実行")
+                FilledIconButton(
+                    onClick = { executeCommand() },
+                    shape = RoundedCornerShape(20)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.terminal_24px),
+                        contentDescription = null
+                    )
                 }
             }
 
