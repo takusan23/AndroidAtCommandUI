@@ -57,16 +57,18 @@ class MainActivity : ComponentActivity() {
 private fun MainScreen() {
     val scope = rememberCoroutineScope()
     val deviceList = remember { mutableStateOf(emptyList<String>()) }
-    val selectDevice = remember { mutableStateOf("") }
+    val selectDevice = remember { mutableStateOf<String?>(null) }
     val outputList = remember { mutableStateOf(emptyList<String>()) }
     val commandText = remember { mutableStateOf("AT") }
 
     /** AT コマンドを投げる */
     fun executeCommand() {
+        val device = selectDevice.value ?: return
+
         scope.launch(Dispatchers.IO) {
             // 出力は outputList で
             Runtime.getRuntime().exec(
-                arrayOf("su", "-c", "echo", "-e", """ "${commandText.value}\r" """, ">", selectDevice.value)
+                arrayOf("su", "-c", "echo", "-e", """ "${commandText.value}\r" """, ">", device)
             )
         }
     }
@@ -83,10 +85,10 @@ private fun MainScreen() {
 
     // AT コマンドの出力を while ループで取り出す
     LaunchedEffect(key1 = selectDevice.value) {
-        if (selectDevice.value.isEmpty()) return@LaunchedEffect
+        val device = selectDevice.value ?: return@LaunchedEffect
 
         withContext(Dispatchers.IO) {
-            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat", selectDevice.value))
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat", device))
             launch {
                 // 出力を取り出す
                 try {
